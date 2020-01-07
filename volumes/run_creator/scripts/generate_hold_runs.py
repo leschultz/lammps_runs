@@ -83,8 +83,6 @@ for number in runs:
         remove += '\n'
         remove += 'delete_atoms group remove'
 
-        print(remove)
-
     contents = contents.replace('$remove$', remove)
 
     incar_out = open(os.path.join(run, 'INCAR'), 'w')

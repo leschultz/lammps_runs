@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Programs
+PYTHON=python3
+
+# Input paramters
+RUNS="[11.67778537, 12.01161558, 12.32785489, 12.62865217, 12.91576478]"  # List of cubic lattice constants
+ELEMENTS="['Zr', 'Cu']"  # Elements
+NUMBERS="[50, 50]"  # Number corresponding to each element
+SAVE="'../../runs/1/Zr50Cu50/2000K'"  # Location to save POSCAR
+INCAR="'../templates/input/Zr50Cu50'"  # The VASP input file
+POTCAR="'../templates/potential/ZrCu.lammps.eam'"  # The VASP potential directory
+SUB="'../templates/submit/bardeen_morgan.q'"  # The submit file
+TEMP="2000"  # Hold temperature
+TIME_STEP="0.001"  # Time Step
+HOLD_STEPS="3000"  # The number of steps to hold
+
+cd ../../scripts
+${PYTHON} generate_hold_runs.py "${ELEMENTS}" "${NUMBERS}" "${SAVE}" "${RUNS}" "${INCAR}" "${POTCAR}" "${SUB}" "${TEMP}" "${TIME_STEP}" "${HOLD_STEPS}"
