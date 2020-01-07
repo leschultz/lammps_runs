@@ -11,7 +11,7 @@
 # morgan.q: 2.5 GHz/core (up to 16 cores) 
 
 # Request up to 48 hours (yipeng.q) or 168 hours (morgan.q) of wall time (hh:mm:ss)
-#$ -l h_rt=336:00:00
+#$ -l h_rt=48:00:00
 
 # Run the job from the directory of submission. Uncomment only if you don't want the defults.
 #$ -cwd
@@ -30,8 +30,8 @@
 source /share/apps/intel/parallel_studio_xe_2016.4.072/psxevars.sh intel64
 
 # The executable for parallel jobs
-mpirun -n $NSLOTS vasp_std > out.txt
+mpirun -n $NSLOTS lmp_mpi < INCAR > out.txt
 
 DT="150"  # Change in temperature
 MIN="200"  # Minimum temperature
-python3 ../../../scripts/step_down.py "${DT}" "${MIN}"
+python3 ../../../run_creator/scripts/step_down.py "${DT}" "${MIN}"

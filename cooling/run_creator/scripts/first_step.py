@@ -1,24 +1,22 @@
 from shutil import copyfile
 from os.path import join
+from math import ceil
 import pandas as pd
 import numpy as np
 import functions
 import re
 
 # Input paramters
-coords = '../templates/poscar/365.txt'  # Starting coordinates
 save = '../../runs'  # Location to save POSCAR
-incar = '../templates/incar/hold'  # The VASP input file
-kpoints = '../templates/kpoints/M'  # The VASP kpoints file
-potcar = '/home/leschultz/work/POTCARs/paw/LDA/5.4'  # The VASP potential file
+incar = '../templates/incar/Zr50Cu50'  # The VASP input file
+potcar = '../templates/potential/ZrCu.lammps.eam'  # The VASP potential file
 submit = '../templates/submit/bardeen_morgan.q'  # The cluster submit file
 fits = '../data_input/data.csv'  # Data for linear fits
 start_temp = 2000.0  # The starting temperature
+time_step = 0.001  # Time step
+hold_steps = 3000  # The number of hold steps
 
 start_temp_str = str(start_temp)
-
-coords = np.loadtxt(coords)  # Load starting coordinates
-coords = coords/coords.max(axis=0)  # Make fractional
 
 # Load the linear fits
 fits = pd.read_csv(fits)
@@ -34,6 +32,9 @@ count = 1
 total = str(fits.shape[0])
 for group, values in groups:
 
+    # Random integer
+    seed = np.random.randint(100000, 999999)
+
     i = re.split('(\d+)', group)
     i = [j for j in i if j != '']
 
@@ -46,8 +47,29 @@ for group, values in groups:
     numbers = [j for j in i if isinstance(j, int)]
     elements = [j for j in i if isinstance(j, str)]
 
-    new_coords = coords[:sum(numbers), :]  # The first n atoms
-    np.random.shuffle(new_coords)  # Randomize coordinates
+    atom_count = sum(numbers)  # Total atoms
+    atom_count_plus = atom_count+1  # Used in loop
+    l = ceil(atom_count**(1/3))
+
+    # Element ID based on order defined
+    elements_id = list(range(1, len(elements)+1))
+
+    # Assign atom types
+    atoms = []
+    for i in range(1, atom_count_plus):
+        atoms.append('set atom '+str(i)+' type ')
+
+    types = []
+    for i, j in zip(elements_id, numbers):
+        types += [str(i)]*j
+
+    # Shuffle order
+    types = np.array(types)
+    np.random.shuffle(types)
+
+    atom_setting = ''
+    for i, j in zip(atoms, types):
+        atom_setting += i+j+'\n'
 
     m = values['slope'].values[0]
     b = values['intercept'].values[0]
@@ -56,49 +78,38 @@ for group, values in groups:
 
     run = join(*[save, group, start_temp_str])
 
-    # Generates structure
-    structure = functions.gen_cubic(
-                                    elements,
-                                    numbers,
-                                    coords,
-                                    length,
-                                    )
-
-    # Find matching POTCARS
-    pots = []
-    for i in elements:
-
-        # Missing Zr potential
-        if i == 'Zr':
-            i = 'Zr_sv'
-
-        # Missing Ca potential
-        if i == 'Ca':
-            i = 'Ca_sv'
-
-        pots.append(join(*[potcar, i, 'POTCAR']))
-
     # Write run
     functions.create_dir(run)
 
-    # Concat POTCARs and save
-    with open(join(run, 'POTCAR'), 'wb') as outfile:
-        for i in pots:
-            with open(i, 'rb') as potfile:
-                outfile.write(potfile.read())
+    # Write input files for cubic
+    contents = incar_contents.replace('$side$', str(length))
+    contents = contents.replace('$lattice$', str(length/l))
+    contents = contents.replace('$time_step$', str(time_step))
+    contents = contents.replace('$seed$', str(seed))
+    contents = contents.replace('$temp$', str(start_temp))
+    contents = contents.replace('$steps$', str(hold_steps))
+    contents = contents.replace('$l$', str(l))
+    contents = contents.replace('$atom_setting$', atom_setting)
 
-    # Write INCAR file
-    incar = incar_contents
-    incar = incar.replace('{temp}', start_temp_str)
+    remove = ''
+    l_cubed = l**3
+    if atom_count < l_cubed:
+
+        remove += '# Remove extra atoms \n'
+        remove += 'group remove id '
+        remove += str(atom_count_plus)+':'+str(l_cubed)
+        remove += '\n'
+        remove += 'delete_atoms group remove'
+
+    contents = contents.replace('$remove$', remove)
+
+    print(join(run, 'INCAR'))
     file_out = open(join(run, 'INCAR'), 'w')
-    file_out.write(incar)
+    file_out.write(contents)
     file_out.close()
 
-    copyfile(kpoints, join(run, 'KPOINTS'))  # Save KPOINTS
+    copyfile(potcar, join(run, potcar.split('/')[-1]))
     copyfile(submit, join(run, 'parallel.sh'))  # Save KPOINTS
-
-    # Save POSCAR
-    structure.to(fmt='poscar', filename=join(run, 'POSCAR'))
 
     # Status update
     print('Generated ('+str(count)+'/'+total+')'+run)

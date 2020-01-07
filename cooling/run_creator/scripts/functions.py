@@ -38,30 +38,3 @@ def finder(name, source):
     paths = set(paths)  # Because ordoer should not matter
 
     return paths
-
-
-def gen_cubic(elements, numbers, coords, a):
-    '''
-    Generate a cubic supercell.
-
-    inputs:
-        elements = List of elements.
-        numbers = The number of atoms for each element.
-        coords = Starting coordinates.
-        a = Cubic lattice paramter.
-
-    outputs:
-        structure = Pymatgen structure object.
-    '''
-
-    # Assign species for each coordinate
-    species = []
-    for i in range(len(elements)):
-        species += [elements[i]]*numbers[i]
-
-    coords = coords[:len(species)]  # Remove left over coordinates
-
-    lattice = mg.Lattice.cubic(a)  # Generate cubic lattice
-    structure = mg.Structure(lattice, species, coords)  # Generate structure
-
-    return structure

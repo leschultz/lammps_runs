@@ -1,0 +1,85 @@
+###############################################################################
+
+# Starting parameters
+units      metal
+atom_style atomic
+dimension  3
+boundary   p p p
+
+###############################################################################
+
+# Simulation space
+lattice      sc $lattice$
+region       simbox prism 0 $l$ 0 $l$ 0 $l$ 0 0 0
+create_box   2 simbox
+create_atoms 1 box
+
+# Set the types of atoms
+$atom_setting$
+
+$remove$
+
+# Data
+pair_style eam/alloy
+pair_coeff * * ZrCu.lammps.eam Zr Cu
+
+###############################################################################
+
+# Time variables
+variable mytimestep                equal  $time_step$
+
+# Random seed
+variable seed                      equal  $seed$
+
+# Run variables
+variable eqtemp                    equal  $temp$
+variable eqhold                    equal  $steps$
+
+# Computed values by LAMMPS
+compute  temp      all temp                 # Overall temperature
+compute  pressure  all pressure thermo_temp # Overall pressure
+compute  pe        all pe                   # Potenntial energy
+compute  ke        all ke                   # Kinetic energy
+
+variable vol       equal vol                # Simulation Volume
+variable enthalpy  equal enthalpy           # Simulation enthalpy
+
+# Data output
+variable mydumprate                equal  1
+variable data_file_characteristics string system.txt
+variable data_file_dump_rate       string traj.lammpstrj
+
+################################################################################
+
+# Time step
+timestep ${mytimestep}
+
+################################################################################
+
+# Save atom positions at an interval
+dump          my_dump all custom ${mydumprate} traj.lammpstrj &
+              id type xu yu zu vz vy vz
+
+dump_modify my_dump sort id
+
+# Save thermodynamic data
+fix           thermo_save all ave/time 1 1 ${mydumprate} &
+              c_temp c_pressure v_vol c_pe c_ke v_enthalpy &
+              file system.txt
+
+# Randomize initial velocities
+velocity      all create ${eqtemp} ${seed}
+
+# Fix the volume
+change_box all x final 0.0 $side$ y final 0.0 $side$ z final 0.0 $side$ units box
+
+# Define an NPT equilibrium hold
+fix           eq all nvt temp ${eqtemp} ${eqtemp} 0.1
+run           ${eqhold}
+unfix         eq
+
+undump        my_dump
+unfix         thermo_save
+
+write_data    data.txt
+write_restart restart.txt
