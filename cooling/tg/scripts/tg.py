@@ -24,13 +24,13 @@ df = df.loc[df['start_temperature'] == df['end_temperature']]
 df = df.sort_values(by=['end_temperature'])
 
 # Energy normalized by atoms
-df['total_energy/atoms'] = df['total_energy']/df['atoms']
+df['total_energy/atoms'] = df['total_energy']/100
 
 # Calculate E-3KT (not showing expected behavior)
 kb = physical_constants['Boltzmann constant in eV/K'][0]
 df['E-3kT'] = df['total_energy/atoms']-3*kb*df['end_temperature']
 
-groups = df.groupby(['composition', 'atoms'])
+groups = df.groupby(['composition'])
 
 compositions = []
 atoms = []
@@ -50,8 +50,8 @@ for group, values in groups:
 
     xcut, endpoints, middle_rmse = opt(xfit, yfit)
 
-    compositions.append(group[0])
-    atoms.append(group[1])
+    compositions.append(group)
+    atoms.append(100)
     tgs.append(xcut)
 
     if save_plots:

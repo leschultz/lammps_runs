@@ -1,22 +1,12 @@
-from ovito.modifiers import CalculateDisplacementsModifier
-from ovito.io import import_file
-
-from msd import msd, self_diffusion
-import functions
-import parsers
-
 from matplotlib import pyplot as pl
 from os.path import join
 from math import floor
 import pandas as pd
 import numpy as np
-import re
+import functions
+import parsers
 
 pl.rcParams["figure.figsize"] = [8, 6]  # Define plot size
-
-# For calculating displacements
-msd_modifier = CalculateDisplacementsModifier()
-msd_modifier.assume_unwrapped_coordinates = True
 
 
 def analysis(
@@ -25,8 +15,6 @@ def analysis(
              incar,
              poscar,
              outcar,
-             xdatcar,
-             oszicar,
              fraction,
              save_plots=False
              ):
@@ -39,8 +27,6 @@ def analysis(
         incar = The INCAR file.
         poscar = The POSCAR file.
         outcar = The OUTCAR file.
-        xdatcar = The XDATCAR file.
-        oszicar = The OSZICAR file.
         fraction = The amount of data to average.
         save_plots = Whether to save analysis plots.
 
@@ -51,7 +37,6 @@ def analysis(
         temp = The average system temperature.
         start_temp = The starting temperature defined in INCAR.
         end_temp = The ending temperature defined in INCAR.
-        diff = The self diffusion.
     '''
 
     # Check if the run has any errors
@@ -63,19 +48,19 @@ def analysis(
     end_temp = params['TEEND']  # Ending temperature
 
     # POSCAR paramters
-    lattice, coords = parsers.poscar(join(path, poscar))
+    elements_id, numbers = parsers.poscar(join(path, poscar))
 
+    elements = []
+    for i, j in zip(params['elements'], elements_id):
+        elements.append(params['elements'][j])
+
+    comp = ''
+    for i, j in zip(elements, numbers):
+        comp += i
+        comp += str(j)
+        
     # OUTCAR paramters
-    comp, vol, press, temp, etot = parsers.outcar(join(path, outcar))
-
-    # Count atoms from composition
-    atoms = re.split('(\d+)', comp)
-    atoms = sum([int(i) for i in atoms if i.isdigit()])
-
-    # OSZICAR parameters
-    T, E, F, E0, EK, SP, SK = parsers.oszicar(join(path, oszicar))
-
-    etot = E  # Use the energy values from OSZICAR instead
+    vol, press, temp, etot = parsers.outcar(join(path, outcar))
 
     # Find minium data length because of runs stopping abruptly
     cut = min(map(len, [vol, press, temp, etot]))
@@ -91,37 +76,11 @@ def analysis(
     temperature = np.mean(temp[start:])
     etotal = np.mean(etot[start:])
 
-    # Compute diffusion
-    pipeline = import_file(join(path, xdatcar))
-    pipeline.modifiers.append(msd_modifier)
-    pipeline.modifiers.append(msd)
-
-    time_modifier = float(params['POTIM'])
-    frames = np.array(range(pipeline.source.num_frames))
-
-    # Remove fraction data from beginning of frames
-    frames = frames[start:]
-
-    pipeline.modifiers[0].reference_frame = frames[0]  # Origin
-
-    msd_calc = []
-    for frame in frames:
-
-        out = pipeline.compute(frame)
-        msd_calc.append(out.attributes['msd'])
-
-    times = frames*time_modifier
-    times -= np.min(times)
-
-    diff, m, b = self_diffusion(times, msd_calc, 6)
-
     if save_plots:
-
-        # Save thermodynamic plot
         n = 4  # Number of plots
         fig, ax = pl.subplots(n)
 
-        x = np.array(range(len(vol)))*time_modifier  # Time
+        x = np.array(range(len(vol)))*float(params['POTIM'])  # Time
         xmin = x[start]/(max(x)-min(x))  # Fraction not exact due to rounding
 
         ax[0].plot(x, vol, color='b', label=r'Data')
@@ -168,53 +127,16 @@ def analysis(
                           )
             ax[i].legend(loc='upper left')
 
-        ax[-1].set_xlabel(r'Time $[fs]$')
+        ax[-1].set_xlabel(r'Time $[ps]$')
         fig.tight_layout()
 
         name = path.strip('../')
         name = name.split('/')
         name = '_'.join(name)
-        therm_name = name+'_thermodynamic.png'
+        name += '_thermodynamic.png'
 
         # Save figure
-        fig.savefig(join(save_plots, therm_name))
-
-        pl.close('all')
-
-        # Save MSD plot
-
-        times_fit = np.linspace(min(times), max(times))
-        msd_fit = m*times_fit+b
-
-        fig, ax = pl.subplots()
-
-        ax.plot(
-                times,
-                msd_calc,
-                linestyle='none',
-                marker='.',
-                label='Data'
-                )
-
-        ax.plot(
-                times_fit,
-                msd_fit,
-                linestyle='none',
-                marker='.',
-                label='Linear Fit (m='+str(m)+', b='+str(b)+')'
-                )
-
-        ax.set_xlabel(r'Time $[fs]$')
-        ax.set_ylabel(r'MSD $[\AA^{2}]$')
-
-        ax.legend()
-
-        fig.tight_layout()
-
-        msd_name = name+'_msd.png'
-
-        # Save figure
-        fig.savefig(join(save_plots, msd_name))
+        fig.savefig(join(save_plots, name))
 
         pl.close('all')
 
@@ -224,9 +146,8 @@ def analysis(
         pressure = np.nan
         temperature = np.nan
         etotal = np.nan
-        diff = np.nan
 
-    return comp, volume, pressure, temperature, etotal, start_temp, end_temp, diff, atoms
+    return comp, volume, pressure, temperature, etotal, start_temp, end_temp
 
 
 def iterate(paths, *args, **kwargs):
@@ -248,8 +169,6 @@ def iterate(paths, *args, **kwargs):
     etots = []
     temp_is = []
     temp_fs = []
-    diffs = []
-    atoms = []
 
     counts = str(len(paths))
     count = 1
@@ -269,8 +188,6 @@ def iterate(paths, *args, **kwargs):
         etots.append(out[4])
         temp_is.append(out[5])
         temp_fs.append(out[6])
-        diffs.append(out[7])
-        atoms.append(out[8])
 
         count += 1
 
@@ -283,8 +200,6 @@ def iterate(paths, *args, **kwargs):
           'total_energy': etots,
           'start_temperature': temp_is,
           'end_temperature': temp_fs,
-          'self_diffusion': diffs,
-          'atoms': atoms,
           }
 
     df = pd.DataFrame(df)
