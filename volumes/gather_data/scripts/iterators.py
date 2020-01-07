@@ -48,10 +48,19 @@ def analysis(
     end_temp = params['TEEND']  # Ending temperature
 
     # POSCAR paramters
-    lattice, coords = parsers.poscar(join(path, poscar))
+    elements_id, numbers = parsers.poscar(join(path, poscar))
 
+    elements = []
+    for i, j in zip(params['elements'], elements_id):
+        elements.append(params['elements'][j])
+
+    comp = ''
+    for i, j in zip(elements, numbers):
+        comp += i
+        comp += str(j)
+        
     # OUTCAR paramters
-    comp, vol, press, temp, etot = parsers.outcar(join(path, outcar))
+    vol, press, temp, etot = parsers.outcar(join(path, outcar))
 
     # Find minium data length because of runs stopping abruptly
     cut = min(map(len, [vol, press, temp, etot]))
@@ -118,7 +127,7 @@ def analysis(
                           )
             ax[i].legend(loc='upper left')
 
-        ax[-1].set_xlabel(r'Time $[fs]$')
+        ax[-1].set_xlabel(r'Time $[ps]$')
         fig.tight_layout()
 
         name = path.strip('../')

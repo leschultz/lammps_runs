@@ -4,10 +4,10 @@ import functions
 
 # Input paramters
 out_print = 'out.txt'  # The VASP print to screen file
-incar = 'INCAR'  # INCAR file
-poscar = 'POSCAR'  # POSCAR file
-outcar = 'OUTCAR'  # OUTCAR file
-vol_dir = '../../run_sets'  # Run directory
+incar = 'INCAR'  # Iput file
+poscar = 'traj.lammpstrj'  # Trajectory file
+outcar = 'system.txt'  # Thermodynamic data
+vol_dir = '../../runs'  # Run directory
 fraction = 0.5  # The fraction of hold data to average
 data_save_dir = '../data'  # The data save folder
 data_save_name = 'data.csv'  # The data save name

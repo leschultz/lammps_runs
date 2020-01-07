@@ -39,8 +39,17 @@ def incar(path):
         for line in f:
             line = line.strip().split(' ')
 
-            if '=' in line:
-                param[line[0]] = line[2]
+            if 'eqtemp' in line:
+                param['TEBEG'] = float(line[-1])
+                param['TEEND'] = float(line[-1])
+
+            if 'mytimestep' in line:
+                param['POTIM'] = float(line[-1])
+
+            if 'pair_coeff' in line:
+                elements = line[4:]
+                number = list(range(1, len(elements)+1))
+                param['elements'] = dict(zip(number, elements))
 
     return param
 
@@ -57,30 +66,32 @@ def poscar(path):
         coords = The atom coordinates.
     '''
 
-    lattice = []
-    coords = []
+    df = []
 
-    begin_coords = 0
     count = 0
     with open(path) as f:
         for line in f:
-            line = line.strip().split(' ')
+            if 'ITEM' in line:
+                count += 1
 
-            if (count > 1) and (count < 5):
-                lattice.append(list(map(lambda i: float(i), line)))
+            if count == 4:
+                line = line.strip().split(' ')
+                if 'ITEM:' in line:
+                    headers = line[2:]
 
-            if begin_coords == 1:
-                coords.append(line)
+                else:
+                    df.append(line)
 
-            if line[0] == 'direct':
-                begin_coords = 1
+            if count > 4:
+                break
 
-            count += 1
+    df = pd.DataFrame(df, columns=headers)
 
-    lattice = np.array(lattice)
-    coords = pd.DataFrame(coords, columns=['x', 'y', 'z', 'element'])
+    elements = df['type'].values
+    elements = list(map(lambda x: int(x), elements))
+    elements, numbers = np.unique(elements, return_counts=True)
 
-    return lattice, coords
+    return elements, numbers
 
 
 def outcar(path):
@@ -96,59 +107,30 @@ def outcar(path):
         temperatures = The temperature data.
     '''
 
-    df = {}  # Avoid unusual printing occasionally seen
+    df = []  # Avoid unusual printing occasionally seen
 
-    finished = False
-    iteration = 0
+    count = 0
     with open(path) as f:
         for line in f:
             line = line.strip().split(' ')
-            line = [i for i in line if i != '']
 
-            if 'Voluntary' in line:
-                finished = True
+            if count == 1:
+                headers = line[1:]
 
-            if 'POSCAR' in line:
-                composition = ''.join(line[2:])
+            if count > 1:
+                line = list(map(lambda x: float(x), line))
+                df.append(line)
 
-            if 'Iteration' in line:
-                index = line.index('Iteration')+1
-                iteration = int(line[index].split('(')[0])
-
-                df[iteration] = {
-                                 'volume': np.nan,
-                                 'pressure': np.nan,
-                                 'temperature': np.nan,
-                                 }
-
-            if iteration > 0:
-
-                if ('volume' in line) and ('cell' in line):
-                    df[iteration]['volume'] = float(line[-1])
-
-                if ('external' in line) and ('pressure' in line):
-                    df[iteration]['pressure'] = float(line[3])
-
-                if '(temperature' in line:
-                    df[iteration]['temperature'] = float(line[5])
-
-                if 'energy(sigma->0)' in line:
-                    df[iteration]['total_energy'] = float(line[-1])
+            count += 1
 
     # Create dataframe
-    df = pd.DataFrame(df).T
+    df = pd.DataFrame(df, columns=headers)
 
     # Prepare values for export
-    volumes = df['volume'].values
-    pressures = df['pressure'].values
-    temperatures = df['temperature'].values
-    total_energy = df['total_energy'].values
+    volumes = df['v_vol'].values
+    pressures = df['c_pressure'].values
+    temperatures = df['c_temp'].values
+    total_energy = df['c_pe']+df['c_ke']
+    total_energy = total_energy.values
 
-    # Return nan for not finished jobs
-    if not finished:
-        volumes[:] = np.nan
-        pressures[:] = np.nan
-        temperatures[:] = np.nan
-        total_energy[:] = np.nan
-
-    return composition, volumes, pressures, temperatures, total_energy
+    return volumes, pressures, temperatures, total_energy

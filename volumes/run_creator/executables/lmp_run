@@ -12,6 +12,6 @@ IFS=$'\n'
 while read -r FNAME ;
 do
     pushd $(dirname "${FNAME}") > /dev/null
-    ${SUBMITTER} < ${SUB}
+    ${SUBMITTER} < ${SUB} > out.txt
     popd > /dev/null
 done < <(find . -type f -name ${SUB})
